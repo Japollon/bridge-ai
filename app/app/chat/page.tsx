@@ -1,11 +1,26 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import TypingIndicator from "@/components/TypingIndicator";
+import BridgeHeader from "@/components/BridgeHeader";
+import ChatBubble from "@/components/ChatBubble";
+import ChatInput from "@/components/ChatInput";
+import ChatActions from "@/components/ChatActions";
+import ResourceList from "@/components/ResourceList";
+import CrisisBanner from "@/components/CrisisBanner";
+import BridgeProgress from "@/components/BridgeProgress";
+import CaseSnapshot from "@/components/CaseSnapshot";
+import DownloadBridgePlan from "@/components/DownloadBridgePlan";
+import {
+  resourceGroups,
+  type ResourceGroupKey,
+} from "@/data/resources";
 type Message = {
   role: "user" | "assistant";
   content: string;
 };
+
 
 const topics = [
   { label: "Housing", emoji: "🏠" },
@@ -15,19 +30,130 @@ const topics = [
   { label: "New to the U.S.", emoji: "🌎" },
   { label: "Something Else", emoji: "❤️" },
 ];
-
+const initialMessages: Message[] = [
+  {
+    role: "assistant",
+    content:
+      "Hi, I'm BridgeAI. Tell me what's going on, or choose a topic below. We'll work toward a clear next step together.",
+  },
+];
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hi, I’m BridgeAI. Tell me what’s going on, or choose a topic below. We’ll work toward a clear next step together.",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
+const [hasLoadedMessages, setHasLoadedMessages] = useState(false);
 
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedResourceGroups, setSelectedResourceGroups] = useState<
+  ResourceGroupKey[]
+>([]);
 
+const [urgency, setUrgency] = useState<"normal" | "urgent">("normal");
+const [bridgeProgress, setBridgeProgress] = useState(0);
+
+const [needs, setNeeds] = useState<string[]>([]);
+
+const [nextBestStep, setNextBestStep] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+useEffect(() => {
+  const savedMessages = window.localStorage.getItem("bridgeai-messages");
+
+  if (savedMessages) {
+    try {
+      setMessages(JSON.parse(savedMessages));
+    } catch {
+      setMessages(initialMessages);
+    }
+  }
+
+  setHasLoadedMessages(true);
+}, []);
+useEffect(() => {
+  const savedDashboardState = window.localStorage.getItem(
+    "bridgeai-dashboard"
+  );
+
+  if (!savedDashboardState) {
+    return;
+  }
+
+  try {
+    const parsedState = JSON.parse(savedDashboardState);
+
+    setSelectedResourceGroups(
+      Array.isArray(parsedState.selectedResourceGroups)
+        ? parsedState.selectedResourceGroups
+        : []
+    );
+
+    setUrgency(
+      parsedState.urgency === "urgent" ? "urgent" : "normal"
+    );
+
+    setBridgeProgress(
+      typeof parsedState.bridgeProgress === "number"
+        ? parsedState.bridgeProgress
+        : 0
+    );
+
+    setNeeds(Array.isArray(parsedState.needs) ? parsedState.needs : []);
+
+    setNextBestStep(
+      typeof parsedState.nextBestStep === "string"
+        ? parsedState.nextBestStep
+        : ""
+    );
+  } catch {
+    window.localStorage.removeItem("bridgeai-dashboard");
+  }
+}, []);
+useEffect(() => {
+  if (hasLoadedMessages) {
+    window.localStorage.setItem(
+      "bridgeai-messages",
+      JSON.stringify(messages)
+    );
+  }
+}, [messages, hasLoadedMessages]);
+useEffect(() => {
+  if (!hasLoadedMessages) {
+    return;
+  }
+
+  window.localStorage.setItem(
+    "bridgeai-dashboard",
+    JSON.stringify({
+      selectedResourceGroups,
+      urgency,
+      bridgeProgress,
+      needs,
+      nextBestStep,
+    })
+  );
+}, [
+  selectedResourceGroups,
+  urgency,
+  bridgeProgress,
+  needs,
+  nextBestStep,
+  hasLoadedMessages,
+]);
+function clearConversation() {
+  setMessages(initialMessages);
+  setMessage("");
+  setSelectedResourceGroups([]);
+  setUrgency("normal");
+  setBridgeProgress(0);
+setNeeds([]);
+setNextBestStep("");
+  window.localStorage.removeItem("bridgeai-messages");
+  window.localStorage.removeItem("bridgeai-dashboard");
+}
+
+useEffect(() => {
+  messagesEndRef.current?.scrollIntoView({
+    behavior: "smooth",
+  });
+}, [messages, isLoading]);
   async function sendMessage(text?: string) {
     const userMessage = (text ?? message).trim();
 
@@ -61,15 +187,26 @@ export default function ChatPage() {
 
       const data = await response.json();
 
-      setMessages([
-        ...updatedMessages,
-        {
-          role: "assistant",
-          content:
-            data.reply ??
-            "I’m sorry, but I wasn’t able to generate a response.",
-        },
-      ]);
+setMessages([
+  ...updatedMessages,
+  {
+    role: "assistant",
+    content:
+      data.reply ??
+      "I’m sorry, but I wasn’t able to generate a response.",
+  },
+]);
+
+setSelectedResourceGroups(
+  Array.isArray(data.resourceGroups) ? data.resourceGroups : []
+);
+
+setUrgency(data.urgency === "urgent" ? "urgent" : "normal");
+setBridgeProgress(data.bridgeScore ?? 0);
+
+setNeeds(data.needs ?? []);
+
+setNextBestStep(data.nextBestStep ?? "");
     } catch (error) {
       console.error(error);
 
@@ -84,103 +221,85 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }
+  
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void sendMessage();
-  }
-
+ 
+}
+const latestBridgePlan =
+  [...messages]
+    .reverse()
+    .find(
+      (chatMessage) =>
+        chatMessage.role === "assistant" &&
+        chatMessage.content.includes("Your Bridge Plan")
+    )?.content ?? "";
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 px-4 py-8 sm:px-6">
       <section className="mx-auto flex min-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl shadow-slate-300/50">
-        <header className="border-b border-slate-200 px-6 py-6 text-center sm:px-10">
-          <div className="flex items-center justify-center gap-3">
-            <span className="text-4xl">🌉</span>
-
-            <h1 className="text-4xl font-bold tracking-tight text-slate-900">
-              BridgeAI
-            </h1>
-          </div>
-
-          <p className="mt-3 text-sm text-slate-500 sm:text-base">
-            You don&apos;t have to figure it out alone.
-          </p>
-        </header>
+        <BridgeHeader onNewConversation={clearConversation} />
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-6 sm:px-8">
-          {messages.map((chatMessage, index) => {
-            const isUser = chatMessage.role === "user";
+         {messages.map((chatMessage, index) => (
+  <ChatBubble
+    key={`${chatMessage.role}-${index}`}
+    role={chatMessage.role}
+    content={chatMessage.content}
+  />
+))}
 
-            return (
-              <div
-                key={`${chatMessage.role}-${index}`}
-                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[88%] rounded-2xl px-5 py-4 leading-7 shadow-sm ${
-                    isUser
-                      ? "rounded-br-md bg-blue-600 text-white"
-                      : "rounded-tl-md bg-blue-50 text-slate-700"
-                  }`}
-                >
-                  {!isUser && (
-                    <p className="mb-1 font-semibold text-blue-900">
-                      🌉 BridgeAI
-                    </p>
-                  )}
-
-                  <p className="whitespace-pre-wrap">{chatMessage.content}</p>
-                </div>
-              </div>
-            );
-          })}
-
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="rounded-2xl rounded-tl-md bg-blue-50 px-5 py-4 text-slate-500 shadow-sm">
-                BridgeAI is thinking...
-              </div>
-            </div>
-          )}
+          {isLoading && <TypingIndicator />}
+<div ref={messagesEndRef} />
+{urgency === "urgent" && <CrisisBanner />}
+{bridgeProgress > 0 && (
+  <BridgeProgress
+    progress={bridgeProgress}
+    needs={needs}
+    nextBestStep={nextBestStep}
+  />
+)}
+{bridgeProgress > 0 && (
+  <CaseSnapshot
+    needs={needs}
+    urgency={urgency}
+    nextBestStep={nextBestStep}
+  />
+)}
+{bridgeProgress > 0 && (
+  <DownloadBridgePlan
+    progress={bridgeProgress}
+    needs={needs}
+    nextBestStep={nextBestStep}
+    planText={latestBridgePlan}
+  />
+)}
+{selectedResourceGroups.map((groupKey) => (
+  <ResourceList
+    key={groupKey}
+    resources={resourceGroups[groupKey].resources}
+  />
+))}
         </div>
 
         <div className="border-t border-slate-200 bg-white px-5 py-5 sm:px-8">
-          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {topics.map((topic) => (
-              <button
-                key={topic.label}
-                type="button"
-                disabled={isLoading}
-                onClick={() =>
-                  void sendMessage(`I need help with ${topic.label}.`)
-                }
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span className="mr-2">{topic.emoji}</span>
-                {topic.label}
-              </button>
-            ))}
-          </div>
-
-          <form onSubmit={handleSubmit} className="flex gap-3">
-            <textarea
-              value={message}
-              disabled={isLoading}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder="Tell me what’s going on..."
-              rows={2}
-              className="min-h-14 flex-1 resize-none rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100"
-            />
-
-            <button
-              type="submit"
-              disabled={isLoading || !message.trim()}
-              className="rounded-2xl bg-blue-600 px-6 font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Send
-            </button>
-          </form>
+<ChatActions
+  topics={topics}
+  isLoading={isLoading}
+  hasConversation={messages.length > 1}
+  onSelectTopic={(topic) =>
+    void sendMessage(`I need help with ${topic}.`)
+  }
+  onCreatePlan={() =>
+    void sendMessage(
+      "Create a Bridge Plan for my situation using everything I have shared."
+    )
+  }
+/>
+          <ChatInput
+  message={message}
+  setMessage={setMessage}
+  isLoading={isLoading}
+  onSubmit={() => void sendMessage()}
+/>
 
           <p className="mt-4 text-center text-xs leading-5 text-slate-400">
             BridgeAI provides general information and does not replace
