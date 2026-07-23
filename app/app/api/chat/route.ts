@@ -3,24 +3,35 @@ import { NextResponse } from "next/server";
 import type {
   BridgeAIErrorResponse,
   BridgeAIResponse,
-  ChatRequest,
 } from "@/lib/contracts/bridge-ai";
+import {
+  isBridgeAIResponse,
+  isChatRequest,
+} from "@/lib/validation/bridge-ai";
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function POST(request: Request) {
+  let body: unknown;
+
   try {
-    const body: ChatRequest = await request.json();
-    const messages = body.messages;
+    body = await request.json();
+  } catch {
+    return NextResponse.json<BridgeAIErrorResponse>(
+      { error: "A conversation is required." },
+      { status: 400 }
+    );
+  }
 
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json<BridgeAIErrorResponse>(
-        { error: "A conversation is required." },
-        { status: 400 }
-      );
-    }
+  if (!isChatRequest(body)) {
+    return NextResponse.json<BridgeAIErrorResponse>(
+      { error: "A conversation is required." },
+      { status: 400 }
+    );
+  }
 
+  try {
     const response = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
 
@@ -201,7 +212,7 @@ Give a practical follow-up action.
 **Next Best Step:** One clear action.
           `.trim(),
         },
-        ...messages,
+        ...body.messages,
       ],
     });
 
@@ -211,12 +222,14 @@ Give a practical follow-up action.
       throw new Error("The model returned an empty response.");
     }
 
-    const result = JSON.parse(content) as BridgeAIResponse;
+    const result: unknown = JSON.parse(content);
+
+    if (!isBridgeAIResponse(result)) {
+      throw new Error("The model returned an invalid response.");
+    }
 
     return NextResponse.json<BridgeAIResponse>(result);
-  } catch (error) {
-    console.error("BridgeAI API error:", error);
-
+  } catch {
     return NextResponse.json<BridgeAIErrorResponse>(
       { error: "BridgeAI could not generate a response." },
       { status: 500 }
