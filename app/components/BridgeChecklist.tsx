@@ -1,11 +1,10 @@
-export type ChecklistTask = {
-  id: string;
-  label: string;
-  timeframe: "today" | "thisWeek" | "followUp";
-};
+import type {
+  ChecklistItem,
+  ChecklistTimeframe,
+} from "@/lib/contracts/bridge-ai";
 
 type BridgeChecklistProps = {
-  tasks: ChecklistTask[];
+  tasks: ChecklistItem[];
   completedTaskIds: string[];
   onToggleTask: (taskId: string) => void;
 };
@@ -33,7 +32,7 @@ export default function BridgeChecklist({
     (completedCount / tasks.length) * 100
   );
 
-  const timeframes: ChecklistTask["timeframe"][] = [
+  const timeframes: ChecklistTimeframe[] = [
     "today",
     "thisWeek",
     "followUp",

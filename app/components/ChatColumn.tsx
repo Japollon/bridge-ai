@@ -1,6 +1,10 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { ChecklistTask } from "@/components/BridgeChecklist";
-import type { ResourceGroupKey } from "@/data/resources";
+import type {
+  ChatMessage,
+  ChecklistItem,
+  ResourceGroup,
+  Urgency,
+} from "@/lib/contracts/bridge-ai";
 
 import BridgeChecklist from "@/components/BridgeChecklist";
 import ChatActions from "@/components/ChatActions";
@@ -13,23 +17,18 @@ import TypingIndicator from "@/components/TypingIndicator";
 
 import { resourceGroups } from "@/data/resources";
 
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-};
-
 type Topic = {
   label: string;
   emoji: string;
 };
 
 type ChatColumnProps = {
-  messages: Message[];
+  messages: ChatMessage[];
   isLoading: boolean;
-  urgency: "normal" | "urgent";
-  checklist: ChecklistTask[];
+  urgency: Urgency;
+  checklist: ChecklistItem[];
   completedTaskIds: string[];
-  selectedResourceGroups: ResourceGroupKey[];
+  selectedResourceGroups: ResourceGroup[];
   bridgeProgress: number;
   needs: string[];
   nextBestStep: string;

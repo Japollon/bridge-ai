@@ -1,7 +1,8 @@
 import ReactMarkdown from "react-markdown";
+import type { ChatMessage } from "@/lib/contracts/bridge-ai";
 
 type ChatBubbleProps = {
-  role: "user" | "assistant";
+  role: ChatMessage["role"];
   content: string;
 };
 

@@ -1,47 +1,21 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-
-type ChatMessage = {
-  role: "user" | "assistant";
-  content: string;
-};
-
-type ResourceGroupKey = "housing" | "food" | "mentalHealth";
-
-type ChecklistTask = {
-  id: string;
-  label: string;
-  timeframe: "today" | "thisWeek" | "followUp";
-};
-
-type CaseFile = {
-  location: string;
-  goal: string;
-  documents: string[];
-  applications: string[];
-};
-
-type BridgeAIResponse = {
-  reply: string;
-  resourceGroups: ResourceGroupKey[];
-  urgency: "normal" | "urgent";
-  bridgeScore: number;
-  needs: string[];
-  nextBestStep: string;
-  checklist: ChecklistTask[];
-  caseFile: CaseFile;
-};
+import type {
+  BridgeAIErrorResponse,
+  BridgeAIResponse,
+  ChatRequest,
+} from "@/lib/contracts/bridge-ai";
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const messages: ChatMessage[] = body.messages;
+    const body: ChatRequest = await request.json();
+    const messages = body.messages;
 
     if (!Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json(
+      return NextResponse.json<BridgeAIErrorResponse>(
         { error: "A conversation is required." },
         { status: 400 }
       );
@@ -239,13 +213,13 @@ Give a practical follow-up action.
 
     const result = JSON.parse(content) as BridgeAIResponse;
 
-    return NextResponse.json(result);
+    return NextResponse.json<BridgeAIResponse>(result);
   } catch (error) {
     console.error("BridgeAI API error:", error);
 
-    return NextResponse.json(
+    return NextResponse.json<BridgeAIErrorResponse>(
       { error: "BridgeAI could not generate a response." },
       { status: 500 }
     );
   }
-} 
+}

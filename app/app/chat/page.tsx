@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import BridgeHeader from "@/components/BridgeHeader";
 import CaseFileSidebar from "@/components/CaseFileSidebar";
 import ChatColumn from "@/components/ChatColumn";
-import { type ChecklistTask } from "@/components/BridgeChecklist";
-import { type ResourceGroupKey } from "@/data/resources";
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-};
+import type {
+  BridgeAIResponse,
+  ChatMessage,
+  ChatRequest,
+  ChecklistItem,
+  ResourceGroup,
+  Urgency,
+} from "@/lib/contracts/bridge-ai";
 
 
 const topics = [
@@ -20,7 +22,7 @@ const topics = [
   { label: "New to the U.S.", emoji: "🌎" },
   { label: "Something Else", emoji: "❤️" },
 ];
-const initialMessages: Message[] = [
+const initialMessages: ChatMessage[] = [
   {
     role: "assistant",
     content:
@@ -28,22 +30,22 @@ const initialMessages: Message[] = [
   },
 ];
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
 const [hasLoadedMessages, setHasLoadedMessages] = useState(false);
 
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedResourceGroups, setSelectedResourceGroups] = useState<
-  ResourceGroupKey[]
+  ResourceGroup[]
 >([]);
 
-const [urgency, setUrgency] = useState<"normal" | "urgent">("normal");
+const [urgency, setUrgency] = useState<Urgency>("normal");
 const [bridgeProgress, setBridgeProgress] = useState(0);
 
 const [needs, setNeeds] = useState<string[]>([]);
 
 const [nextBestStep, setNextBestStep] = useState("");
-const [checklist, setChecklist] = useState<ChecklistTask[]>([]);
+const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
 
 const [completedTaskIds, setCompletedTaskIds] = useState<string[]>([]);
 const [caseLocation, setCaseLocation] = useState("");
@@ -220,7 +222,7 @@ useEffect(() => {
       return;
     }
 
-    const updatedMessages: Message[] = [
+    const updatedMessages: ChatMessage[] = [
       ...messages,
       { role: "user", content: userMessage },
     ];
@@ -237,14 +239,14 @@ useEffect(() => {
         },
         body: JSON.stringify({
           messages: updatedMessages,
-        }),
+        } satisfies ChatRequest),
       });
 
       if (!response.ok) {
         throw new Error("The request failed.");
       }
 
-      const data = await response.json();
+      const data: BridgeAIResponse = await response.json();
 console.log("BridgeAI API data:", data);
 setMessages([
   ...updatedMessages,
@@ -266,7 +268,7 @@ setBridgeProgress(data.bridgeScore ?? 0);
 setNeeds(data.needs ?? []);
 
 setNextBestStep(data.nextBestStep ?? "");
-const incomingChecklist: ChecklistTask[] = Array.isArray(data.checklist)
+const incomingChecklist: ChecklistItem[] = Array.isArray(data.checklist)
   ? data.checklist
   : [];
 

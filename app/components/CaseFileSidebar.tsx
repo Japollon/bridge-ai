@@ -1,11 +1,14 @@
-import type { ChecklistTask } from "@/components/BridgeChecklist";
+import type {
+  ChecklistItem,
+  Urgency,
+} from "@/lib/contracts/bridge-ai";
 
 type CaseFileSidebarProps = {
   progress: number;
   needs: string[];
-  urgency: "normal" | "urgent";
+  urgency: Urgency;
   nextBestStep: string;
-  checklist: ChecklistTask[];
+  checklist: ChecklistItem[];
   completedTaskIds: string[];
   caseLocation: string;
   caseGoal: string;
