@@ -11,7 +11,12 @@ import ResourceList from "@/components/ResourceList";
 import CrisisBanner from "@/components/CrisisBanner";
 import BridgeProgress from "@/components/BridgeProgress";
 import CaseSnapshot from "@/components/CaseSnapshot";
+import CaseFileSidebar from "@/components/CaseFileSidebar";
 import DownloadBridgePlan from "@/components/DownloadBridgePlan";
+import ChatColumn from "@/components/ChatColumn";
+import BridgeChecklist, {
+  type ChecklistTask,
+} from "@/components/BridgeChecklist";
 import {
   resourceGroups,
   type ResourceGroupKey,
@@ -53,6 +58,13 @@ const [bridgeProgress, setBridgeProgress] = useState(0);
 const [needs, setNeeds] = useState<string[]>([]);
 
 const [nextBestStep, setNextBestStep] = useState("");
+const [checklist, setChecklist] = useState<ChecklistTask[]>([]);
+
+const [completedTaskIds, setCompletedTaskIds] = useState<string[]>([]);
+const [caseLocation, setCaseLocation] = useState("");
+const [caseGoal, setCaseGoal] = useState("");
+const [documents, setDocuments] = useState<string[]>([]);
+const [applications, setApplications] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 useEffect(() => {
   const savedMessages = window.localStorage.getItem("bridgeai-messages");
@@ -102,6 +114,40 @@ useEffect(() => {
         ? parsedState.nextBestStep
         : ""
     );
+    setChecklist(
+  Array.isArray(parsedState.checklist)
+    ? parsedState.checklist
+    : []
+);
+
+setCompletedTaskIds(
+  Array.isArray(parsedState.completedTaskIds)
+    ? parsedState.completedTaskIds
+    : []
+);
+setCaseLocation(
+  typeof parsedState.caseLocation === "string"
+    ? parsedState.caseLocation
+    : ""
+);
+
+setCaseGoal(
+  typeof parsedState.caseGoal === "string"
+    ? parsedState.caseGoal
+    : ""
+);
+
+setDocuments(
+  Array.isArray(parsedState.documents)
+    ? parsedState.documents
+    : []
+);
+
+setApplications(
+  Array.isArray(parsedState.applications)
+    ? parsedState.applications
+    : []
+);
   } catch {
     window.localStorage.removeItem("bridgeai-dashboard");
   }
@@ -127,6 +173,12 @@ useEffect(() => {
       bridgeProgress,
       needs,
       nextBestStep,
+      checklist,
+completedTaskIds,
+caseLocation,
+caseGoal,
+documents,
+applications,
     })
   );
 }, [
@@ -135,6 +187,12 @@ useEffect(() => {
   bridgeProgress,
   needs,
   nextBestStep,
+    checklist,
+  completedTaskIds,
+    caseLocation,
+  caseGoal,
+  documents,
+  applications,
   hasLoadedMessages,
 ]);
 function clearConversation() {
@@ -145,10 +203,22 @@ function clearConversation() {
   setBridgeProgress(0);
 setNeeds([]);
 setNextBestStep("");
+setChecklist([]);
+setCompletedTaskIds([]);
+setCaseLocation("");
+setCaseGoal("");
+setDocuments([]);
+setApplications([]);
   window.localStorage.removeItem("bridgeai-messages");
   window.localStorage.removeItem("bridgeai-dashboard");
 }
-
+function toggleChecklistTask(taskId: string) {
+  setCompletedTaskIds((currentTaskIds) =>
+    currentTaskIds.includes(taskId)
+      ? currentTaskIds.filter((id) => id !== taskId)
+      : [...currentTaskIds, taskId]
+  );
+}
 useEffect(() => {
   messagesEndRef.current?.scrollIntoView({
     behavior: "smooth",
@@ -186,7 +256,7 @@ useEffect(() => {
       }
 
       const data = await response.json();
-
+console.log("BridgeAI API data:", data);
 setMessages([
   ...updatedMessages,
   {
@@ -207,6 +277,42 @@ setBridgeProgress(data.bridgeScore ?? 0);
 setNeeds(data.needs ?? []);
 
 setNextBestStep(data.nextBestStep ?? "");
+const incomingChecklist: ChecklistTask[] = Array.isArray(data.checklist)
+  ? data.checklist
+  : [];
+
+setChecklist(incomingChecklist);
+
+setCompletedTaskIds((currentTaskIds) =>
+  currentTaskIds.filter((taskId) =>
+    incomingChecklist.some((task) => task.id === taskId)
+  )
+);
+const incomingCaseFile = data.caseFile ?? {};
+
+setCaseLocation(
+  typeof incomingCaseFile.location === "string"
+    ? incomingCaseFile.location
+    : ""
+);
+
+setCaseGoal(
+  typeof incomingCaseFile.goal === "string"
+    ? incomingCaseFile.goal
+    : ""
+);
+
+setDocuments(
+  Array.isArray(incomingCaseFile.documents)
+    ? incomingCaseFile.documents
+    : []
+);
+
+setApplications(
+  Array.isArray(incomingCaseFile.applications)
+    ? incomingCaseFile.applications
+    : []
+);
     } catch (error) {
       console.error(error);
 
@@ -234,79 +340,46 @@ const latestBridgePlan =
         chatMessage.content.includes("Your Bridge Plan")
     )?.content ?? "";
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 px-4 py-8 sm:px-6">
-      <section className="mx-auto flex min-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl shadow-slate-300/50">
-        <BridgeHeader onNewConversation={clearConversation} />
+  <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 px-4 py-6">
+    <section className="mx-auto flex min-h-[85vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-xl">
+      <BridgeHeader onNewConversation={clearConversation} />
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-6 sm:px-8">
-         {messages.map((chatMessage, index) => (
-  <ChatBubble
-    key={`${chatMessage.role}-${index}`}
-    role={chatMessage.role}
-    content={chatMessage.content}
-  />
-))}
-
-          {isLoading && <TypingIndicator />}
-<div ref={messagesEndRef} />
-{urgency === "urgent" && <CrisisBanner />}
-{bridgeProgress > 0 && (
-  <BridgeProgress
-    progress={bridgeProgress}
-    needs={needs}
-    nextBestStep={nextBestStep}
-  />
-)}
-{bridgeProgress > 0 && (
-  <CaseSnapshot
-    needs={needs}
-    urgency={urgency}
-    nextBestStep={nextBestStep}
-  />
-)}
-{bridgeProgress > 0 && (
-  <DownloadBridgePlan
-    progress={bridgeProgress}
-    needs={needs}
-    nextBestStep={nextBestStep}
-    planText={latestBridgePlan}
-  />
-)}
-{selectedResourceGroups.map((groupKey) => (
-  <ResourceList
-    key={groupKey}
-    resources={resourceGroups[groupKey].resources}
-  />
-))}
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="border-b border-slate-200 bg-slate-50 p-4 lg:border-b-0 lg:border-r lg:overflow-y-auto">
+          <CaseFileSidebar
+            progress={bridgeProgress}
+            needs={needs}
+            urgency={urgency}
+            nextBestStep={nextBestStep}
+            checklist={checklist}
+            completedTaskIds={completedTaskIds}
+            caseLocation={caseLocation}
+caseGoal={caseGoal}
+documents={documents}
+applications={applications}
+          />
         </div>
 
-        <div className="border-t border-slate-200 bg-white px-5 py-5 sm:px-8">
-<ChatActions
-  topics={topics}
-  isLoading={isLoading}
-  hasConversation={messages.length > 1}
-  onSelectTopic={(topic) =>
-    void sendMessage(`I need help with ${topic}.`)
-  }
-  onCreatePlan={() =>
-    void sendMessage(
-      "Create a Bridge Plan for my situation using everything I have shared."
-    )
-  }
-/>
-          <ChatInput
-  message={message}
-  setMessage={setMessage}
-  isLoading={isLoading}
-  onSubmit={() => void sendMessage()}
-/>
-
-          <p className="mt-4 text-center text-xs leading-5 text-slate-400">
-            BridgeAI provides general information and does not replace
-            professional, medical, legal, or emergency services.
-          </p>
-        </div>
-      </section>
-    </main>
-  );
+        <ChatColumn
+          messages={messages}
+          isLoading={isLoading}
+          urgency={urgency}
+          checklist={checklist}
+          completedTaskIds={completedTaskIds}
+          selectedResourceGroups={selectedResourceGroups}
+          bridgeProgress={bridgeProgress}
+          needs={needs}
+          nextBestStep={nextBestStep}
+          latestBridgePlan={latestBridgePlan}
+          topics={topics}
+          message={message}
+          setMessage={setMessage}
+          onSendMessage={(text) => void sendMessage(text)}
+          onToggleChecklistTask={toggleChecklistTask}
+          messagesEndRef={messagesEndRef}
+        />
+      </div>
+    </section>
+  </main>
+);
 }

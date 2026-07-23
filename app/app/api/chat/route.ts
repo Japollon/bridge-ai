@@ -8,6 +8,19 @@ type ChatMessage = {
 
 type ResourceGroupKey = "housing" | "food" | "mentalHealth";
 
+type ChecklistTask = {
+  id: string;
+  label: string;
+  timeframe: "today" | "thisWeek" | "followUp";
+};
+
+type CaseFile = {
+  location: string;
+  goal: string;
+  documents: string[];
+  applications: string[];
+};
+
 type BridgeAIResponse = {
   reply: string;
   resourceGroups: ResourceGroupKey[];
@@ -15,8 +28,9 @@ type BridgeAIResponse = {
   bridgeScore: number;
   needs: string[];
   nextBestStep: string;
+  checklist: ChecklistTask[];
+  caseFile: CaseFile;
 };
-
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -72,6 +86,56 @@ needs: {
 nextBestStep: {
   type: "string",
 },
+checklist: {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      id: {
+        type: "string",
+      },
+      label: {
+        type: "string",
+      },
+      timeframe: {
+        type: "string",
+        enum: ["today", "thisWeek", "followUp"],
+      },
+    },
+    required: ["id", "label", "timeframe"],
+    additionalProperties: false,
+  },
+},
+caseFile: {
+  type: "object",
+  properties: {
+    location: {
+      type: "string",
+    },
+    goal: {
+      type: "string",
+    },
+    documents: {
+      type: "array",
+      items: {
+        type: "string",
+      },
+    },
+    applications: {
+      type: "array",
+      items: {
+        type: "string",
+      },
+    },
+  },
+  required: [
+    "location",
+    "goal",
+    "documents",
+    "applications",
+  ],
+  additionalProperties: false,
+},
             },
           required: [
   "reply",
@@ -80,6 +144,8 @@ nextBestStep: {
   "bridgeScore",
   "needs",
   "nextBestStep",
+  "checklist",
+  "caseFile",
 ],
             additionalProperties: false,
           },
@@ -120,6 +186,26 @@ Bridge Score rules:
 - Use a whole number from 0 through 100.
 - needs should contain short labels such as "Housing", "Food", or "Mental Health".
 - nextBestStep must be one short, practical action.
+Checklist rules:
+- checklist should contain 3 to 6 practical tasks based on the current conversation.
+- Each task must have a short unique id such as "gather-lease" or "call-211".
+- Keep each task label short, specific, and actionable.
+- Use timeframe "today" for immediate tasks.
+- Use timeframe "thisWeek" for tasks that should happen within several days.
+- Use timeframe "followUp" for checking progress or following up later.
+- Do not invent application deadlines, eligibility, phone numbers, or organizations.
+- Return an empty checklist if there is not enough information to create useful tasks.
+Case File rules:
+- Always return a caseFile object.
+- caseFile.location should contain the user's city and state if known, such as "Tampa, FL".
+- If the location is unknown, return an empty string.
+- caseFile.goal should be one short sentence describing the user's current objective.
+- If the goal is not yet clear, return an empty string.
+- caseFile.documents should list only documents that are reasonably relevant to the current situation.
+- caseFile.applications should list benefits, assistance programs, or applications that may be relevant.
+- Do not claim the user qualifies for an application or program.
+- Do not invent deadlines, confirmation numbers, application statuses, or completed actions.
+- Use details already shared earlier in the conversation.
 When creating a Bridge Plan, format the reply in Markdown using this structure:
 
 ## Your Bridge Plan
