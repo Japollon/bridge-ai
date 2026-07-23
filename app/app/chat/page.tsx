@@ -1,26 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import TypingIndicator from "@/components/TypingIndicator";
 import BridgeHeader from "@/components/BridgeHeader";
-import ChatBubble from "@/components/ChatBubble";
-import ChatInput from "@/components/ChatInput";
-import ChatActions from "@/components/ChatActions";
-import ResourceList from "@/components/ResourceList";
-import CrisisBanner from "@/components/CrisisBanner";
-import BridgeProgress from "@/components/BridgeProgress";
-import CaseSnapshot from "@/components/CaseSnapshot";
 import CaseFileSidebar from "@/components/CaseFileSidebar";
-import DownloadBridgePlan from "@/components/DownloadBridgePlan";
 import ChatColumn from "@/components/ChatColumn";
-import BridgeChecklist, {
-  type ChecklistTask,
-} from "@/components/BridgeChecklist";
-import {
-  resourceGroups,
-  type ResourceGroupKey,
-} from "@/data/resources";
+import { type ChecklistTask } from "@/components/BridgeChecklist";
+import { type ResourceGroupKey } from "@/data/resources";
 type Message = {
   role: "user" | "assistant";
   content: string;
@@ -67,6 +52,7 @@ const [documents, setDocuments] = useState<string[]>([]);
 const [applications, setApplications] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 useEffect(() => {
+  /* eslint-disable react-hooks/set-state-in-effect -- Storage hydration must run after mount to preserve the server-rendered initial state. */
   const savedMessages = window.localStorage.getItem("bridgeai-messages");
 
   if (savedMessages) {
@@ -78,8 +64,10 @@ useEffect(() => {
   }
 
   setHasLoadedMessages(true);
+  /* eslint-enable react-hooks/set-state-in-effect */
 }, []);
 useEffect(() => {
+  /* eslint-disable react-hooks/set-state-in-effect -- Storage hydration must run after mount to preserve the server-rendered initial state. */
   const savedDashboardState = window.localStorage.getItem(
     "bridgeai-dashboard"
   );
@@ -151,6 +139,7 @@ setApplications(
   } catch {
     window.localStorage.removeItem("bridgeai-dashboard");
   }
+  /* eslint-enable react-hooks/set-state-in-effect */
 }, []);
 useEffect(() => {
   if (hasLoadedMessages) {
