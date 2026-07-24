@@ -4,6 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import BridgeHeader from "@/components/BridgeHeader";
 import CaseFileSidebar from "@/components/CaseFileSidebar";
 import ChatColumn from "@/components/ChatColumn";
+import {
+  clearPersistedBridgeChat,
+  readPersistedDashboard,
+  readPersistedMessages,
+  writePersistedDashboard,
+  writePersistedMessages,
+} from "@/features/bridge-chat/storage/localStorageRepository";
 import type {
   BridgeAIResponse,
   ChatMessage,
@@ -55,14 +62,10 @@ const [applications, setApplications] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 useEffect(() => {
   /* eslint-disable react-hooks/set-state-in-effect -- Storage hydration must run after mount to preserve the server-rendered initial state. */
-  const savedMessages = window.localStorage.getItem("bridgeai-messages");
+  const savedMessages = readPersistedMessages(initialMessages);
 
   if (savedMessages) {
-    try {
-      setMessages(JSON.parse(savedMessages));
-    } catch {
-      setMessages(initialMessages);
-    }
+    setMessages(savedMessages);
   }
 
   setHasLoadedMessages(true);
@@ -70,85 +73,28 @@ useEffect(() => {
 }, []);
 useEffect(() => {
   /* eslint-disable react-hooks/set-state-in-effect -- Storage hydration must run after mount to preserve the server-rendered initial state. */
-  const savedDashboardState = window.localStorage.getItem(
-    "bridgeai-dashboard"
-  );
+  const parsedState = readPersistedDashboard();
 
-  if (!savedDashboardState) {
+  if (!parsedState) {
     return;
   }
 
-  try {
-    const parsedState = JSON.parse(savedDashboardState);
-
-    setSelectedResourceGroups(
-      Array.isArray(parsedState.selectedResourceGroups)
-        ? parsedState.selectedResourceGroups
-        : []
-    );
-
-    setUrgency(
-      parsedState.urgency === "urgent" ? "urgent" : "normal"
-    );
-
-    setBridgeProgress(
-      typeof parsedState.bridgeProgress === "number"
-        ? parsedState.bridgeProgress
-        : 0
-    );
-
-    setNeeds(Array.isArray(parsedState.needs) ? parsedState.needs : []);
-
-    setNextBestStep(
-      typeof parsedState.nextBestStep === "string"
-        ? parsedState.nextBestStep
-        : ""
-    );
-    setChecklist(
-  Array.isArray(parsedState.checklist)
-    ? parsedState.checklist
-    : []
-);
-
-setCompletedTaskIds(
-  Array.isArray(parsedState.completedTaskIds)
-    ? parsedState.completedTaskIds
-    : []
-);
-setCaseLocation(
-  typeof parsedState.caseLocation === "string"
-    ? parsedState.caseLocation
-    : ""
-);
-
-setCaseGoal(
-  typeof parsedState.caseGoal === "string"
-    ? parsedState.caseGoal
-    : ""
-);
-
-setDocuments(
-  Array.isArray(parsedState.documents)
-    ? parsedState.documents
-    : []
-);
-
-setApplications(
-  Array.isArray(parsedState.applications)
-    ? parsedState.applications
-    : []
-);
-  } catch {
-    window.localStorage.removeItem("bridgeai-dashboard");
-  }
+  setSelectedResourceGroups(parsedState.selectedResourceGroups);
+  setUrgency(parsedState.urgency);
+  setBridgeProgress(parsedState.bridgeProgress);
+  setNeeds(parsedState.needs);
+  setNextBestStep(parsedState.nextBestStep);
+  setChecklist(parsedState.checklist);
+  setCompletedTaskIds(parsedState.completedTaskIds);
+  setCaseLocation(parsedState.caseLocation);
+  setCaseGoal(parsedState.caseGoal);
+  setDocuments(parsedState.documents);
+  setApplications(parsedState.applications);
   /* eslint-enable react-hooks/set-state-in-effect */
 }, []);
 useEffect(() => {
   if (hasLoadedMessages) {
-    window.localStorage.setItem(
-      "bridgeai-messages",
-      JSON.stringify(messages)
-    );
+    writePersistedMessages(messages);
   }
 }, [messages, hasLoadedMessages]);
 useEffect(() => {
@@ -156,22 +102,19 @@ useEffect(() => {
     return;
   }
 
-  window.localStorage.setItem(
-    "bridgeai-dashboard",
-    JSON.stringify({
-      selectedResourceGroups,
-      urgency,
-      bridgeProgress,
-      needs,
-      nextBestStep,
-      checklist,
-completedTaskIds,
-caseLocation,
-caseGoal,
-documents,
-applications,
-    })
-  );
+  writePersistedDashboard({
+    selectedResourceGroups,
+    urgency,
+    bridgeProgress,
+    needs,
+    nextBestStep,
+    checklist,
+    completedTaskIds,
+    caseLocation,
+    caseGoal,
+    documents,
+    applications,
+  });
 }, [
   selectedResourceGroups,
   urgency,
@@ -200,8 +143,7 @@ setCaseLocation("");
 setCaseGoal("");
 setDocuments([]);
 setApplications([]);
-  window.localStorage.removeItem("bridgeai-messages");
-  window.localStorage.removeItem("bridgeai-dashboard");
+  clearPersistedBridgeChat();
 }
 function toggleChecklistTask(taskId: string) {
   setCompletedTaskIds((currentTaskIds) =>
