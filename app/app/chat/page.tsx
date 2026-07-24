@@ -11,10 +11,9 @@ import {
   writePersistedDashboard,
   writePersistedMessages,
 } from "@/features/bridge-chat/storage/localStorageRepository";
+import { sendBridgeChatRequest } from "@/features/bridge-chat/services/bridgeChatApi";
 import type {
-  BridgeAIResponse,
   ChatMessage,
-  ChatRequest,
   ChecklistItem,
   ResourceGroup,
   Urgency,
@@ -174,22 +173,7 @@ useEffect(() => {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: updatedMessages,
-        } satisfies ChatRequest),
-      });
-
-      if (!response.ok) {
-        throw new Error("The request failed.");
-      }
-
-      const data: BridgeAIResponse = await response.json();
-console.log("BridgeAI API data:", data);
+      const data = await sendBridgeChatRequest(updatedMessages);
 setMessages([
   ...updatedMessages,
   {
